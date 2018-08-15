@@ -1,0 +1,65 @@
+node {
+    try {
+        def project = 'android-sunflower-master'
+        def appName = 'Sunflower'
+
+        // step([$class: 'StashNotifier'])
+
+        // Mark the code checkout 'stage'....
+        stage('Checkout'){
+            // Checkout code from repository and update any submodules
+            // checkout scm
+            // sh 'git submodule update --init'
+        }
+
+        stage('Static analysis'){
+            sh "./gradlew lint"
+            androidLint pattern: "**/lint-results.xml"
+        }
+
+        stage('Tests'){
+            // sh "./gradlew dependencies"
+            sh "./gradlew test"
+            lock('emulator'){
+                sh "./gradlew connectedCheck"
+            }
+            junit '**/TEST-*.xml'
+        }
+
+        stage('Build'){
+            // Branch name from Jenkins environment variables
+            // def flavor = flavor(env.BRANCH_NAME)
+            // echo "Working on branch: ${env.BRANCH_NAME}"
+            // echo "Building flavor ${flavor}"
+            // Build your gradle flavor, passes the current build number as a parameter to gradle
+            // sh "./gradlew clean assembleDebug${flavor} Debug -PBUILD_NUMBER=${env.BUILD_NUMBER}"
+            sh "./gradlew clean assemble"
+        }
+
+
+        stage('Archive'){
+            // Tell Jenkins to archive the apks
+            // archiveArtifacts artifacts: 'app/build/outputs/apk/*.apk'
+            archiveArtifacts artifacts: 'app/build/outputs/apk/**/*.apk', fingerprint: true
+        }
+
+        stage('Upload To Fabric'){
+            echo "Uploading"
+            echo "Success!"
+            // sh "./gradlew crashlyticsUploadDistribution${flavor}Debug  -PBUILD_NUMBER=${env.BUILD_NUMBER}"
+        }
+        currentBuild.result = 'SUCCESS'
+    } catch(e) {
+        currentBuild.result = 'FAILED'
+        throw e
+    }
+
+}
+
+// Pulls the android flavor out of the branch name the branch is prepended with /QA_
+@NonCPS
+def flavor(branchName) {
+  def matcher = (env.BRANCH_NAME =~ /QA_([a-z_]+)/)
+  assert matcher.matches()
+  matcher[0][1]
+}
